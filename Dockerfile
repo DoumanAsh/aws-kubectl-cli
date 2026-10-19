@@ -1,7 +1,8 @@
-FROM public.ecr.aws/docker/library/alpine:latest
+FROM docker.io/alpine:latest
 
 # Reference:
-# https://docs.aws.amazon.com/eks/latest/userguide/install-kubectl.html#linux_amd64_kubectl
+# Check kubernetes-* tags
+# https://github.com/kubernetes/kubectl/tags
 ARG KUBECTL_VERSION=1.36.2
 ENV HOME=/home/dev/
 RUN set -eux; \
@@ -13,7 +14,7 @@ RUN set -eux; \
         aarch64) kubectlArch='arm64' ;; \
         *) echo >&2 "unsupported architecture: '$apkArch'"; exit 1 ;; \
     esac; \
-    wget -q https://s3.us-west-2.amazonaws.com/amazon-eks/${KUBECTL_VERSION}/2026-07-05/bin/linux/arm64/kubectl -O /usr/local/bin/kubectl ;\
+    wget -q https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${kubectlArch}/kubectl -O /usr/local/bin/kubectl ;\
     chmod +x /usr/local/bin/kubectl 
 
 WORKDIR /home/dev/
