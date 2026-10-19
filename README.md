@@ -5,6 +5,5 @@
 [![Quay](https://img.shields.io/badge/quay.io-douman%2Faws--kubectl--cli-blue)](https://quay.io/repository/doumanash/aws-kubectl-cli)
 
 Simple docker container containing CLI utilities to manage EKS with following utilities:
-
-- awc cli
+- AWS CLI
 - kubectl
