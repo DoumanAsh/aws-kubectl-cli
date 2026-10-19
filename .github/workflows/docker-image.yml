@@ -19,6 +19,7 @@ on:
       - '.github/workflows/docker-image.yml'
       - 'Dockerfile.*'
       - 'root/**/*'
+  workflow_dispatch:
 
 env:
   DOCKER_REGISTRY: docker.io
