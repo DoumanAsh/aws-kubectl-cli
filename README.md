@@ -11,7 +11,7 @@ Simple docker container containing CLI utilities to manage EKS with following ut
 ## Environment
 
 Default environment is setup as following:
-- `USER`: non-root `dev` with `root` group
+- `USER`: non-root `dev`(uid=10001) with `root` group
 - `HOME`: starting folder at `/home/$USER`
 - Extra tools:
     - `jq`
