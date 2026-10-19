@@ -4,7 +4,6 @@ FROM public.ecr.aws/docker/library/alpine:latest
 # https://docs.aws.amazon.com/eks/latest/userguide/install-kubectl.html#linux_amd64_kubectl
 ARG KUBECTL_VERSION=1.36.2
 RUN set -eux; \
-    apk update ;\
     apk add --no-cache aws-cli ; \
     apkArch="$(apk --print-arch)"; \
     case "$apkArch" in \
