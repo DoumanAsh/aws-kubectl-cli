@@ -1,0 +1,183 @@
+name: Docker
+
+on:
+  # Once a week
+  schedule:
+    - cron: '0 0 * * 0'
+  push:
+    paths:
+      - '.github/workflows/docker-image.yml'
+      - 'Dockerfile.*'
+      - 'root/**/*'
+    branches:
+      - master
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - '**'
+    paths:
+      - '.github/workflows/docker-image.yml'
+      - 'Dockerfile.*'
+      - 'root/**/*'
+
+env:
+  DOCKER_REGISTRY: docker.io
+  GITHUB_REGISTRY: ghcr.io
+  QUAY_REGISTRY: quay.io
+  DOCKER_IMAGE_NAME: douman/aws-kubectl-cli
+  GITHUB_IMAGE_NAME: doumanash/aws-kubectl-cli
+
+jobs:
+  build:
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    strategy:
+      fail-fast: false
+      matrix:
+        kubectl_version:
+          - 1.36.2
+          - 1.35.6
+          - 1.34.9
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+        with:
+          cache-image: false
+          platforms: arm64
+
+      - name: Setup Docker buildx
+        uses: docker/setup-buildx-action@v4
+        with:
+          platforms: linux/amd64,linux/arm64
+
+      - name: Log into ${{ env.DOCKER_REGISTRY }} registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: douman
+          ## Set in repo Settings->Secrets->New repository secret
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Log into ${{ env.GITHUB_REGISTRY }} registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.GITHUB_REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log into ${{ env.QUAY_REGISTRY }} registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.QUAY_REGISTRY }}
+          username: doumanash+aws-kubectl-cli-ci
+          ## Set in repo Settings->Secrets->New repository secret
+          password: ${{ secrets.QUAY_TOKEN }}
+
+      - name: Build Docker image
+        id: build-docker
+        uses: docker/build-push-action@v7
+        env:
+          DOCKER_BUILD_SUMMARY: false
+        with:
+          file: Dockerfile
+          build-args: |
+            KUBECTL_VERSION=${{ matrix.kubectl_version }}
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: |
+            ${{env.DOCKER_REGISTRY}}/${{ env.DOCKER_IMAGE_NAME }}:${{ matrix.kubectl_version }}
+            ${{env.GITHUB_REGISTRY}}/${{ env.GITHUB_IMAGE_NAME }}:${{ matrix.kubectl_version }}
+            ${{env.QUAY_REGISTRY}}/${{ env.GITHUB_IMAGE_NAME }}:${{ matrix.kubectl_version }}
+
+      - name: Run vulnerability scanner
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: "${{env.DOCKER_REGISTRY}}/${{ env.DOCKER_IMAGE_NAME }}:${{ matrix.kubectl_version }}"
+          format: 'json'
+          vuln-type: 'os,library'
+          severity: 'LOW,MEDIUM,HIGH,CRITICAL'
+          cache: 'false'
+          output: 'trivy.json'
+          version: latest
+          exit-code: 0
+
+      - name: Generate trivy.html fragment
+        shell: bash
+        env:
+          TRIVY_JSON: trivy.json
+        run: |
+          echo '<h3>Summary</h3>' >> trivy.html
+          jq -r '
+            [.Results[]?.Vulnerabilities[]? | select(.Severity != null)] as $vulns
+            | if ($vulns | length) == 0 then
+                "<p>No vulnerabilities found ✅</p>"
+              else
+                "<p>vulnerabilities found ⚠️</p>" +
+                "<ul>" + ($vulns | group_by(.Severity) | map("<li>\(.[0].Severity): \(length)</li>") | join("")) + "</ul>"
+              end
+          ' "$TRIVY_JSON" >> trivy.html
+
+          echo '<h3>Full list</h3>' >> trivy.html
+          echo '<table><thead><tr><th>Severity</th><th>PkgName</th><th>InstalledVersion</th><th>FixedVersion</th><th>Status</th><th>Title</th></tr></thead><tbody>' >> trivy.html
+          jq -r '.Results[]?.Vulnerabilities[]?|select(.Severity != null)|"<tr><td>\(.Severity//""|@html)</td><td>\(.PkgName//""|@html)</td><td>\(.InstalledVersion//""|@html)</td><td>\(.FixedVersion//""|@html)</td><td>\(.Status//""|@html)</td><td>\(.Title//""|@html)</td></tr>"' "$TRIVY_JSON" >> trivy.html
+          echo '</tbody></table>' >> trivy.html
+
+      - name: Paste Trivy report into github
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v3
+        with:
+          # Pass html fragment as {{{content}}}
+          path: trivy.html
+          # Creates new comment deleting old one
+          recreate: true
+          message: |
+            ## Vulnerabilities report 🔓
+
+            {{{content}}}
+
+      - name: Generate summary
+        id: test
+        env:
+          IMAGE_REF: ${{env.DOCKER_REGISTRY}}/${{ env.DOCKER_IMAGE_NAME }}:${{ matrix.kubectl_version }}
+        run: |
+          echo '## Build docker ${{ matrix.kubectl_version }} image 🚀' >> $GITHUB_STEP_SUMMARY
+          VERSION=$(docker run --rm --entrypoint /usr/local/bin/kubectl $IMAGE_REF version --client=true | head -n 1 | cut -d":" -f2 | tr -d ' ')
+          echo "- Kubectl version: $VERSION" >> $GITHUB_STEP_SUMMARY
+          VERSION=$(echo "$VERSION" | cut -d"." -f 1,2 | tr -d 'v')
+          echo "kubectl_short_version=$VERSION" >> "$GITHUB_OUTPUT"
+          VERSION=$(docker run --rm --entrypoint /usr/bin/aws $IMAGE_REF --version | cut -d" " -f1 | cut -d"/" -f2)
+          echo "- AWS CLI version: $VERSION" >> $GITHUB_STEP_SUMMARY
+          VERSION=$(docker run --rm --entrypoint cat $IMAGE_REF /etc/os-release | grep VERSION_ID | cut -d"=" -f2 | tr -d '"' | cut -d"." -f 1,2)
+          echo "- Alpine version: $VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "## Vulnerabilities report 🔓" >> $GITHUB_STEP_SUMMARY
+          cat trivy.html >> $GITHUB_STEP_SUMMARY
+
+      - name: Push Docker image
+        id: push-docker
+        uses: docker/build-push-action@v7
+        with:
+          file: Dockerfile
+          build-args: |
+            KUBECTL_VERSION=${{ matrix.kubectl_version }}
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          sbom: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}:${{ matrix.kubectl_version }}
+            ${{ env.GITHUB_REGISTRY }}/${{ env.GITHUB_IMAGE_NAME }}:${{ matrix.kubectl_version }}
+            ${{ env.QUAY_REGISTRY }}/${{ env.GITHUB_IMAGE_NAME }}:${{ matrix.kubectl_version }}
+            ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}:${{ steps.test.outputs.kubectl_short_version }}
+            ${{ env.GITHUB_REGISTRY }}/${{ env.GITHUB_IMAGE_NAME }}:${{ steps.test.outputs.kubectl_short_version }}
+            ${{ env.QUAY_REGISTRY }}/${{ env.GITHUB_IMAGE_NAME }}:${{ steps.test.outputs.kubectl_short_version }}
