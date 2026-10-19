@@ -3,10 +3,13 @@ FROM docker.io/alpine:latest
 # Reference:
 # Check kubernetes-* tags
 # https://github.com/kubernetes/kubectl/tags
-ARG KUBECTL_VERSION=1.36.2
-ENV HOME=/home/dev/
+ARG KUBECTL_VERSION=1.36.5
+ARG USER=dev
+ENV USER=$USER \
+    HOME=/home/$USER/
+    
 RUN set -eux; \
-    adduser -D -u 10001 dev -G root -h $HOME -s /sbin/nologin ;\
+    adduser -D -u 10001 $USER -G root -h $HOME -s /sbin/nologin ;\
     apk add --no-cache aws-cli ; \
     apkArch="$(apk --print-arch)"; \
     case "$apkArch" in \
@@ -17,6 +20,6 @@ RUN set -eux; \
     wget -q https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${kubectlArch}/kubectl -O /usr/local/bin/kubectl ;\
     chmod +x /usr/local/bin/kubectl 
 
-WORKDIR /home/dev/
+WORKDIR /home/$USER/
 USER dev
 ENTRYPOINT ["/bin/sh"]

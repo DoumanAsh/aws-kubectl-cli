@@ -7,3 +7,9 @@
 Simple docker container containing CLI utilities to manage EKS with following utilities:
 - AWS CLI
 - kubectl
+
+## Environment
+
+Default environment is setup as following:
+- `USER`: non-root `dev` with `root` group
+- `HOME`: starting folder at `/home/$USER`
