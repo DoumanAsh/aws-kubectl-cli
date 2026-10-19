@@ -10,7 +10,7 @@ ENV USER=$USER \
     
 RUN set -eux; \
     adduser -D -u 10001 $USER -G root -h $HOME -s /sbin/nologin ;\
-    apk add --no-cache aws-cli ; \
+    apk add --no-cache aws-cli jq ; \
     apkArch="$(apk --print-arch)"; \
     case "$apkArch" in \
         x86_64) kubectlArch='amd64' ;; \

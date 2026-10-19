@@ -1,9 +1,9 @@
 name: Docker
 
 on:
-  # Once a week
+  # Once a month
   schedule:
-    - cron: '0 0 * * 0'
+    - cron: '0 0 1 * *'
   push:
     paths:
       - '.github/workflows/docker-image.yml'
