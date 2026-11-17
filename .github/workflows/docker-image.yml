@@ -94,6 +94,8 @@ jobs:
           context: .
           platforms: linux/amd64
           load: true
+          sbom: false
+          provenance: false
           tags: |
             ${{env.DOCKER_REGISTRY}}/${{ env.DOCKER_IMAGE_NAME }}:${{ matrix.kubectl_version }}
             ${{env.GITHUB_REGISTRY}}/${{ env.GITHUB_IMAGE_NAME }}:${{ matrix.kubectl_version }}
@@ -172,7 +174,8 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
-          sbom: ${{ github.event_name != 'pull_request' }}
+          sbom: false
+          provenance: false
           tags: |
             ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}:${{ matrix.kubectl_version }}
             ${{ env.GITHUB_REGISTRY }}/${{ env.GITHUB_IMAGE_NAME }}:${{ matrix.kubectl_version }}
