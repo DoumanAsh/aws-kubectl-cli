@@ -3,7 +3,7 @@ FROM docker.io/alpine:latest
 # Reference:
 # Check kubernetes-* tags
 # https://github.com/kubernetes/kubectl/tags
-ARG KUBECTL_VERSION=1.36.5
+ARG KUBECTL_VERSION=1.36.6
 ARG USER=dev
 ENV USER=$USER \
     HOME=/home/$USER/
