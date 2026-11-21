@@ -19,27 +19,13 @@ on:
       - 'Dockerfile'
   workflow_dispatch:
 
-env:
-  DOCKER_REGISTRY: docker.io
-  DOCKER_USERNAME: douman
-
-  GITHUB_REGISTRY: ghcr.io
-  GITHUB_USERNAME: doumanash
-
-  QUAY_REGISTRY: quay.io
-  QUAY_USERNAME: doumanash
-  QUAY_BOT_SUFFIX: aws-kubectl-cli-ci
-
-  IMAGE_NAME: aws-kubectl-cli
-
 jobs:
-  build:
+  container:
+    if: github.event.pull_request.draft == false
     permissions:
       contents: read
       packages: write
       pull-requests: write
-    runs-on: ubuntu-latest
-    if: github.event.pull_request.draft == false
     strategy:
       fail-fast: false
       matrix:
@@ -47,87 +33,34 @@ jobs:
           - 1.36.6
           - 1.35.10
           - 1.34.13
+    uses: DoumanAsh/douman-ci/.github/workflows/release-container.yaml@master
+    secrets:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+      QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+    with:
+      # Make sure to create repos in all container registries using the same name as the repo
+      image_name: ${{ github.event.repository.name }}
+      container_file: "Dockerfile"
+      use_oci: true
+      platform: "linux"
+      archs: "amd64 arm64"
+      upload_container: ${{ github.event.pull_request.draft == false }}
+      docker_user: "douman"
+      github_user: "doumanash"
+      quay_user: "doumanash"
+      quay_bot_suffix: "aws-kubectl-cli-ci"
+      build_args: |
+        KUBECTL_VERSION=${{ matrix.kubectl_version }}
+      post_build_script: |
+          VERSION=$(podman run --rm --entrypoint /usr/local/bin/kubectl ${{ github.event.repository.name }} version --client=true | head -n 1 | cut -d":" -f2 | tr -d ' ')
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
+          SHORT_VERSION=$(echo "$VERSION" | cut -d"." -f 1,2 | tr -d 'v')
+          echo "tags=$VERSION $SHORT_VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
-        with:
-          cache-image: false
-          platforms: arm64
-
-      - name: Generate tags
-        id: tags
-        run: |
-          VERSION=$(echo "${{ matrix.kubectl_version }}" | cut -d"." -f 1,2 | tr -d 'v')
-          echo "value=${{ matrix.kubectl_version }} $VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Build container image
-        id: build
-        uses: redhat-actions/buildah-build@v3
-        with:
-          containerfiles: Dockerfile
-          build-args: |
-            KUBECTL_VERSION=${{ matrix.kubectl_version }}
-          context: .
-          oci: true
-          platforms: linux/amd64,linux/arm64
-          image: ${{ env.IMAGE_NAME }}
-          tags: ${{ steps.tags.outputs.value }}
-
-      - name: Generate summary
-        env:
-          IMAGE_REF: ${{ env.IMAGE_NAME }}:${{ matrix.kubectl_version }}
-        run: |
-          echo '## Build container ${{ matrix.kubectl_version }} image 🚀' >> $GITHUB_STEP_SUMMARY
-          VERSION=$(podman run --rm --entrypoint /usr/local/bin/kubectl $IMAGE_REF version --client=true | head -n 1 | cut -d":" -f2 | tr -d ' ')
           echo "- Kubectl version: $VERSION" >> $GITHUB_STEP_SUMMARY
-          VERSION=$(podman run --rm --entrypoint /usr/bin/aws $IMAGE_REF --version | cut -d" " -f1 | cut -d"/" -f2)
+
+          VERSION=$(podman run --rm --entrypoint /usr/bin/aws ${{ github.event.repository.name }} --version | cut -d" " -f1 | cut -d"/" -f2)
           echo "- AWS CLI version: $VERSION" >> $GITHUB_STEP_SUMMARY
-          VERSION=$(podman run --rm --entrypoint cat $IMAGE_REF /etc/os-release | grep VERSION_ID | cut -d"=" -f2 | tr -d '"' | cut -d"." -f 1,2)
+          VERSION=$(podman run --rm --entrypoint cat ${{ github.event.repository.name }} /etc/os-release | grep VERSION_ID | cut -d"=" -f2 | tr -d '"' | cut -d"." -f 1,2)
           echo "- Alpine version: $VERSION" >> $GITHUB_STEP_SUMMARY
-
-      - name: Save ${{ steps.build.outputs.image }}:${{ matrix.kubectl_version }} image to tarball
-        run: podman save -o ${{ runner.temp }}/image.tar ${{ steps.build.outputs.image }}:${{ matrix.kubectl_version }}
-
-      - name: Check vulnerabilities
-        uses: DoumanAsh/douman-ci/.github/actions/trivy-report-vuln@master
-        with:
-          image_tar: "${{ runner.temp }}/image.tar"
-          image_name: "${{ steps.build.outputs.image }}-${{ matrix.kubectl_version }}"
-          pr_comment: ${{ github.event_name == 'pull_request' }}
-          pr_comment_recreate: true
-          upload_json_retention_days: 7
-
-      - name: Publish containers to ${{ env.DOCKER_REGISTRY }}
-        if: github.event_name != 'pull_request'
-        uses: redhat-actions/push-to-registry@v3
-        with:
-          registry: ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_USERNAME }}
-          username: ${{ env.DOCKER_USERNAME }}
-          ## Set in repo Settings->Secrets->New repository secret
-          password: ${{ secrets.DOCKER_TOKEN }}
-          image: ${{ steps.build.outputs.image }}
-          tags: ${{ steps.build.outputs.tags }}
-
-      - name: Publish containers to ${{ env.GITHUB_REGISTRY }}
-        if: github.event_name != 'pull_request'
-        uses: redhat-actions/push-to-registry@v3
-        with:
-          registry: ${{ env.GITHUB_REGISTRY }}/${{ env.GITHUB_USERNAME }}
-          username: ${{ env.GITHUB_USERNAME }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          image: ${{ steps.build.outputs.image }}
-          tags: ${{ steps.build.outputs.tags }}
-
-      - name: Publish containers to ${{ env.QUAY_REGISTRY }}
-        if: github.event_name != 'pull_request'
-        uses: redhat-actions/push-to-registry@v3
-        with:
-          registry: ${{ env.QUAY_REGISTRY }}/${{ env.QUAY_USERNAME }}
-          username: ${{ env.QUAY_USERNAME }}+${{ env.QUAY_BOT_SUFFIX }}
-          password: ${{ secrets.QUAY_TOKEN }}
-          image: ${{ steps.build.outputs.image }}
-          tags: ${{ steps.build.outputs.tags }}
