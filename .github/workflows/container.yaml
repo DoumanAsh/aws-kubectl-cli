@@ -58,11 +58,11 @@ jobs:
           cache-image: false
           platforms: arm64
 
-      - name: Generate extra tags
-        id: extra_tags
+      - name: Generate tags
+        id: tags
         run: |
           VERSION=$(echo "${{ matrix.kubectl_version }}" | cut -d"." -f 1,2 | tr -d 'v')
-          echo "kubectl_short_version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "value=${{ matrix.kubectl_version }} $VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Build container image
         id: build
@@ -75,9 +75,7 @@ jobs:
           oci: true
           platforms: linux/amd64,linux/arm64
           image: ${{ env.IMAGE_NAME }}
-          tags: |
-            ${{ matrix.kubectl_version }}
-            ${{ steps.extra_tags.outputs.kubectl_short_version }}
+          tags: ${{ steps.tags.outputs.value }}
 
       - name: Generate summary
         env:
