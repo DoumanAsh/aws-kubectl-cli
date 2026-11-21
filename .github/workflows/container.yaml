@@ -21,6 +21,7 @@ on:
 
 jobs:
   container:
+    name: "${{ github.event.repository.name }}:${{ matrix.kubectl_version }}"
     if: github.event.pull_request.draft == false
     permissions:
       contents: read
