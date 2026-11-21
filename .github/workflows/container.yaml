@@ -21,8 +21,15 @@ on:
 
 env:
   DOCKER_REGISTRY: docker.io
+  DOCKER_USERNAME: douman
+
   GITHUB_REGISTRY: ghcr.io
+  GITHUB_USERNAME: doumanash
+
   QUAY_REGISTRY: quay.io
+  QUAY_USERNAME: doumanash
+  QUAY_BOT_SUFFIX: aws-kubectl-cli-ci
+
   IMAGE_NAME: aws-kubectl-cli
 
 jobs:
@@ -100,8 +107,8 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: redhat-actions/push-to-registry@v3
         with:
-          registry: ${{ env.DOCKER_REGISTRY }}/douman
-          username: douman
+          registry: ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_USERNAME }}
+          username: ${{ env.DOCKER_USERNAME }}
           ## Set in repo Settings->Secrets->New repository secret
           password: ${{ secrets.DOCKER_TOKEN }}
           image: ${{ steps.build.outputs.image }}
@@ -111,8 +118,8 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: redhat-actions/push-to-registry@v3
         with:
-          registry: ${{ env.GITHUB_REGISTRY }}/doumanash
-          username: doumanash
+          registry: ${{ env.GITHUB_REGISTRY }}/${{ env.GITHUB_USERNAME }}
+          username: ${{ env.GITHUB_USERNAME }}
           password: ${{ secrets.GITHUB_TOKEN }}
           image: ${{ steps.build.outputs.image }}
           tags: ${{ steps.build.outputs.tags }}
@@ -121,8 +128,8 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: redhat-actions/push-to-registry@v3
         with:
-          registry: ${{ env.QUAY_REGISTRY }}/doumanash
-          username: doumanash+aws-kubectl-cli-ci
+          registry: ${{ env.QUAY_REGISTRY }}/${{ env.QUAY_USERNAME }}
+          username: ${{ env.QUAY_USERNAME }}+${{ env.QUAY_BOT_SUFFIX }}
           password: ${{ secrets.QUAY_TOKEN }}
           image: ${{ steps.build.outputs.image }}
           tags: ${{ steps.build.outputs.tags }}
