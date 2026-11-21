@@ -53,9 +53,9 @@ jobs:
       build_args: |
         KUBECTL_VERSION=${{ matrix.kubectl_version }}
       post_build_script: |
-          VERSION=$(podman run --rm --entrypoint /usr/local/bin/kubectl ${{ github.event.repository.name }} version --client=true | head -n 1 | cut -d":" -f2 | tr -d ' ')
+          VERSION=$(podman run --rm --entrypoint /usr/local/bin/kubectl ${{ github.event.repository.name }} version --client=true | head -n 1 | cut -d":" -f2 | tr -d ' ' | tr -d 'v')
 
-          SHORT_VERSION=$(echo "$VERSION" | cut -d"." -f 1,2 | tr -d 'v')
+          SHORT_VERSION=$(echo "$VERSION" | cut -d"." -f 1,2)
           echo "tags=$VERSION $SHORT_VERSION" >> "$GITHUB_OUTPUT"
 
           echo "- Kubectl version: $VERSION" >> $GITHUB_STEP_SUMMARY
