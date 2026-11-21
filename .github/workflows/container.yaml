@@ -42,6 +42,11 @@ jobs:
     with:
       # Make sure to create repos in all container registries using the same name as the repo
       image_name: ${{ github.event.repository.name }}
+      annotations: |
+        org.opencontainers.image.title=${{ github.event.repository.name }}
+        org.opencontainers.image.description=${{ github.event.repository.description }}
+        org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+        org.opencontainers.image.revision=${{ github.sha }}
       container_file: "Dockerfile"
       use_oci: true
       platform: "linux"
